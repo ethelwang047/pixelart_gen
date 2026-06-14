@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useDebouncedCallback } from 'use-debounce'
-import { generateImage, pixelateImage, extractPalette, friendlyError } from './api'
+import { generateImage, pixelateImage, extractPalette, getUsage, friendlyError } from './api'
 import PromptPanel from './components/PromptPanel'
 import CanvasPreview from './components/CanvasPreview'
 import PixelControls from './components/PixelControls'
@@ -56,6 +56,11 @@ export default function App() {
   const palette = usePalette()
   const gameUnit = useGameUnit()
   const gallery = useGallery()
+  const [totalCostUsd, setTotalCostUsd] = useState<number | null>(null)
+
+  useEffect(() => {
+    getUsage().then(r => setTotalCostUsd((r as { total_cost_usd: number }).total_cost_usd)).catch(() => {})
+  }, [])
 
   const addToast = useCallback((message: string, type: ToastType = 'error') => {
     const id = ++toastId.current
@@ -350,6 +355,11 @@ export default function App() {
         )}
         <div className="flex-1" />
         <span className="text-[11px] text-ink-600">STYLE: {styleKey.toUpperCase()}</span>
+        {totalCostUsd !== null && (
+          <span className="text-[11px] text-ink-700" title="本機累計 Imagen 4 費用">
+            $ {totalCostUsd.toFixed(4)}
+          </span>
+        )}
       </footer>
 
       <Toast toasts={toasts} onDismiss={id => setToasts(t => t.filter(x => x.id !== id))} />

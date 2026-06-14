@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import JSZip from 'jszip'
 import { generateProps, rerollProp, friendlyError } from '../../api'
 import Toast, { ToastItem, ToastType } from '../Toast'
 import { usePropsHistory, PropsHistoryEntry } from '../../hooks/usePropsHistory'
@@ -73,7 +74,7 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
   const [isGenerating, setIsGenerating] = useState(false)
   const [rerollingId, setRerollingId] = useState<string | null>(null)
   const [toasts, setToasts] = useState<ToastItem[]>([])
-  const { entries: historyEntries, addEntry: addHistoryEntry } = usePropsHistory()
+  const { entries: historyEntries, addEntry: addHistoryEntry, removeEntry: removeHistoryEntry } = usePropsHistory()
 
   const activeBiome = customBiome.trim() || biome
 
@@ -133,12 +134,19 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
     setCustomBiome('')
   }, [])
 
-  const handleExportAll = useCallback(() => {
-    props.forEach(p => downloadPng(p.imageB64, `${p.name}.png`))
-    downloadJson(
+  const handleExportAll = useCallback(async () => {
+    const zip = new JSZip()
+    const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+    props.forEach(p => zip.file(`${p.name}.png`, b64ToBytes(p.imageB64)))
+    zip.file('props_manifest.json', JSON.stringify(
       props.map((p, i) => ({ index: i, name: p.name, description: p.description, category: p.category, file: `${p.name}.png` })),
-      'props_manifest.json',
-    )
+      null, 2,
+    ))
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'props.zip'; a.click()
+    URL.revokeObjectURL(url)
   }, [props])
 
   const handleExportGameSize = useCallback(() => {
@@ -261,7 +269,7 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
                 className="w-full py-1.5 text-[11px] border border-ink-700 text-ink-500
                   hover:border-ink-500 hover:text-ink-300 transition-colors"
               >
-                ↓ EXPORT ORIGINAL
+                ↓ EXPORT ZIP
               </button>
               <button
                 onClick={handleExportGameSize}
@@ -281,28 +289,35 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
               <p className="panel-label mb-2">HISTORY</p>
               <div className="flex flex-col gap-1.5">
                 {historyEntries.map(entry => (
-                  <button
-                    key={entry.id}
-                    onClick={() => handleLoadHistory(entry)}
-                    className="text-left border border-ink-700 hover:border-ink-500 p-1.5 transition-colors group"
-                  >
-                    <div className="text-[10px] text-ink-400 group-hover:text-ink-200 mb-1 uppercase truncate">
-                      {entry.biome} · {entry.props.length}
-                    </div>
-                    <div className="flex gap-0.5 mb-1">
-                      {entry.props.slice(0, 5).map((p, i) => (
-                        <div key={i} className="w-7 h-7 checker overflow-hidden flex-shrink-0">
-                          <img
-                            src={`data:image/png;base64,${p.imageB64}`}
-                            alt={p.name}
-                            className="w-full h-full object-contain"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-[9px] text-ink-700">{entry.timestamp}</div>
-                  </button>
+                  <div key={entry.id} className="relative group/hist border border-ink-700 hover:border-ink-500 transition-colors">
+                    <button
+                      onClick={() => handleLoadHistory(entry)}
+                      className="w-full text-left p-1.5"
+                    >
+                      <div className="text-[10px] text-ink-400 group-hover/hist:text-ink-200 mb-1 uppercase truncate pr-4">
+                        {entry.biome} · {entry.props.length}
+                      </div>
+                      <div className="flex gap-0.5 mb-1">
+                        {entry.props.slice(0, 5).map((p, i) => (
+                          <div key={i} className="w-7 h-7 checker overflow-hidden flex-shrink-0">
+                            <img
+                              src={`data:image/png;base64,${p.imageB64}`}
+                              alt={p.name}
+                              className="w-full h-full object-contain"
+                              style={{ imageRendering: 'pixelated' }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-[9px] text-ink-700">{entry.timestamp}</div>
+                    </button>
+                    <button
+                      onClick={() => removeHistoryEntry(entry.id)}
+                      className="absolute top-1 right-1 text-[10px] text-ink-700 hover:text-pixel-red
+                        opacity-0 group-hover/hist:opacity-100 transition-all leading-none px-0.5"
+                      title="刪除記錄"
+                    >✕</button>
+                  </div>
                 ))}
               </div>
             </div>

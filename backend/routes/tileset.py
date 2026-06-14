@@ -165,11 +165,81 @@ def _build_atlas(tiles: dict[str, Image.Image], extrude: int = 2) -> Image.Image
 
 # ── Request / Response ─────────────────────────────────────────────────────────
 
+class TilesetRerollTileRequest(BaseModel):
+    material:  str
+    tile_name: str
+    style_key: str = "stardew"
+    tile_size: int = 64
+    locked_palette: list[str] | None = None
+
+
 class TilesetGenerateRequest(BaseModel):
     material:  str = "mossy stone"
     style_key: str = "stardew"
     tile_size: int = 64          # target per-tile output size (32 / 64 / 128)
     locked_palette: list[str] | None = None
+
+
+@router.post("/tileset/reroll-tile")
+def tileset_reroll_tile(req: TilesetRerollTileRequest):
+    if client is None:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY 未設定")
+
+    tile_info = next((t for t in TILES if t[0] == req.tile_name), None)
+    if not tile_info:
+        raise HTTPException(status_code=400, detail=f"Unknown tile: {req.tile_name}")
+
+    name, row, col = tile_info
+    style_suffix = STYLES.get(req.style_key, STYLES["stardew"])
+    tile_size    = max(32, min(128, req.tile_size))
+
+    # Crop just this cell from the template
+    template  = _build_template(cell=64)
+    cs        = 64
+    cell_crop = template.crop((col * cs, row * cs, (col + 1) * cs, (row + 1) * cs))
+    buf       = io.BytesIO()
+    cell_crop.save(buf, format="PNG")
+    cell_bytes = buf.getvalue()
+
+    painter_prompt = (
+        f"Restyle this single '{name}' tile as '{req.material}' pixel art. {style_suffix}\n"
+        f"Keep magenta (#FF00FF) as the transparent background. Keep the silhouette shape exactly.\n"
+        f"Match the texture and palette of a '{req.material}' autotile set.\n"
+        f"Output exactly one tile image, same dimensions as input."
+    )
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=[
+                types.Part.from_bytes(data=cell_bytes, mime_type="image/png"),
+                types.Part.from_text(text=painter_prompt),
+            ],
+            config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini 呼叫失敗：{e}")
+
+    tile_bytes = None
+    for part in response.candidates[0].content.parts:
+        if getattr(part, "inline_data", None) and part.inline_data.mime_type.startswith("image/"):
+            tile_bytes = part.inline_data.data
+            break
+
+    if not tile_bytes:
+        raise HTTPException(status_code=500, detail="Gemini 未回傳圖片")
+
+    try:
+        raw    = Image.open(io.BytesIO(tile_bytes)).convert("RGBA")
+        keyed  = _chroma_key(raw)
+        filled = flood_fill_transparent(keyed, tolerance=25)
+        resized = filled.resize((tile_size, tile_size), Image.NEAREST)
+        if req.locked_palette:
+            resized = remap_to_palette(resized, req.locked_palette)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"處理失敗：{e}")
+
+    return {"name": name, "row": row, "col": col, "image_base64": image_to_b64(resized)}
 
 
 @router.post("/tileset/generate")

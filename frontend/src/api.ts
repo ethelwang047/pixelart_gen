@@ -26,7 +26,7 @@ export class ApiError extends Error {
 export function friendlyError(e: unknown): string {
   if (e instanceof DOMException && e.name === 'AbortError') return '請求超時（60 秒），請重試'
   if (e instanceof ApiError) {
-    if (e.status === 429) return 'Gemini API 配額已達上限，請稍後再試'
+    if (e.status === 429) return 'API 配額已達上限，請等候約 1 分鐘後再試'
     if (e.status === 403) return 'API Key 無效或無 Imagen 存取權限'
     if (e.status === 503) return 'GEMINI_API_KEY 未設定，請檢查後端環境變數'
     return e.message
@@ -178,6 +178,37 @@ export async function pixelateImage(params: {
       body: JSON.stringify(params),
       signal,
     })
+    return handleResponse(res)
+  } finally {
+    clear()
+  }
+}
+
+export async function rerollTile(params: {
+  material: string
+  tile_name: string
+  style_key: string
+  tile_size: number
+  locked_palette?: string[]
+}) {
+  const { signal, clear } = withTimeout(60_000)
+  try {
+    const res = await fetch(`${BASE}/tileset/reroll-tile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+      signal,
+    })
+    return handleResponse(res)
+  } finally {
+    clear()
+  }
+}
+
+export async function getUsage() {
+  const { signal, clear } = withTimeout(10_000)
+  try {
+    const res = await fetch(`${BASE}/usage`, { signal })
     return handleResponse(res)
   } finally {
     clear()

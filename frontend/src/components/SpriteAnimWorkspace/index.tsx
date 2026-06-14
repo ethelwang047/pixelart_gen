@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import JSZip from 'jszip'
 import { lockCharacter, generateSheet, friendlyError } from '../../api'
 import Toast, { ToastItem, ToastType } from '../Toast'
 
@@ -57,11 +58,6 @@ function downloadPng(b64: string, filename: string) {
   a.href = `data:image/png;base64,${b64}`; a.download = filename; a.click()
 }
 
-function downloadJson(obj: unknown, filename: string) {
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob); a.download = filename; a.click()
-}
 
 export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, baseUnit = 16, onAddToGallery }: SpriteAnimWorkspaceProps) {
   const [description, setDescription] = useState('')
@@ -76,10 +72,17 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
   const [playFrame, setPlayFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(true)
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const animSectionRef = useRef<HTMLDivElement>(null)
 
   const addToast = useCallback((msg: string, type: ToastType = 'error') => {
     setToasts(t => [...t, { id: Date.now(), message: msg, type }])
   }, [])
+
+  useEffect(() => {
+    if (character) {
+      setTimeout(() => animSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150)
+    }
+  }, [character])
 
   // Animation player
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -143,14 +146,21 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
     }
   }, [character, animation, styleKey, tileSize, addToast])
 
-  const handleExportAll = useCallback(() => {
+  const handleExportAll = useCallback(async () => {
     if (!result) return
+    const zip = new JSZip()
+    const b64ToBytes = (b64: string) => Uint8Array.from(atob(b64), c => c.charCodeAt(0))
     result.frames.forEach((b64, i) =>
-      downloadPng(b64, `${animation}_${String(i).padStart(2, '0')}.png`)
+      zip.file(`${animation}_${String(i).padStart(2, '0')}.png`, b64ToBytes(b64))
     )
-    downloadPng(result.grid_sheet, `${animation}_grid.png`)
-    downloadPng(result.strip, `${animation}_strip.png`)
-    downloadJson(result.manifest, `${animation}_manifest.json`)
+    zip.file(`${animation}_grid.png`, b64ToBytes(result.grid_sheet))
+    zip.file(`${animation}_strip.png`, b64ToBytes(result.strip))
+    zip.file(`${animation}_manifest.json`, JSON.stringify(result.manifest, null, 2))
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${animation}_sheet.zip`; a.click()
+    URL.revokeObjectURL(url)
   }, [result, animation])
 
   const currentAnim = ANIMS.find(a => a.key === animation)!
@@ -277,7 +287,7 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
         <div className="panel-divider mx-3" />
 
         {/* Animation selection */}
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3" ref={animSectionRef}>
           <p className="panel-label mb-1.5">ANIMATION</p>
           <div className="grid grid-cols-3 gap-1 mb-3">
             {ANIMS.map(a => (
@@ -360,7 +370,7 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
                 className="w-full py-1.5 text-[10px] border border-ink-700 text-ink-500
                   hover:border-ink-500 hover:text-ink-300 transition-colors"
               >
-                ↓ ALL FRAMES + MANIFEST
+                ↓ ALL FRAMES + MANIFEST (ZIP)
               </button>
             </div>
           </>

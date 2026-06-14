@@ -16,7 +16,7 @@ export interface PropsHistoryEntry {
 }
 
 const STORAGE_KEY = 'props_history'
-const MAX_ENTRIES = 3
+const MAX_ENTRIES = 5
 
 function load(): PropsHistoryEntry[] {
   try {
@@ -56,5 +56,13 @@ export function usePropsHistory() {
     })
   }, [])
 
-  return { entries, addEntry }
+  const removeEntry = useCallback((id: string) => {
+    setEntries(prev => {
+      const next = prev.filter(e => e.id !== id)
+      persist(next)
+      return next
+    })
+  }, [])
+
+  return { entries, addEntry, removeEntry }
 }

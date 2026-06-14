@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { generateTileset, friendlyError } from '../../api'
+import JSZip from 'jszip'
+import { generateTileset, rerollTile, friendlyError } from '../../api'
 import Toast, { ToastItem, ToastType } from '../Toast'
 
 interface TilesetWorkspaceProps {
@@ -65,11 +66,6 @@ function downloadPng(b64: string, filename: string) {
   a.href = `data:image/png;base64,${b64}`; a.download = filename; a.click()
 }
 
-function downloadJson(obj: unknown, filename: string) {
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob); a.download = filename; a.click()
-}
 
 export default function TilesetWorkspace({ lockedPalette, onExtractPalette, baseUnit = 16, onAddToGallery }: TilesetWorkspaceProps) {
   const [material, setMaterial] = useState('mossy stone')
@@ -77,6 +73,7 @@ export default function TilesetWorkspace({ lockedPalette, onExtractPalette, base
   const [styleKey, setStyleKey] = useState('stardew')
   const [tileSize, setTileSize] = useState(baseUnit)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [rerollingTile, setRerollingTile] = useState<string | null>(null)
   const [result, setResult] = useState<TilesetResult | null>(null)
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -100,6 +97,38 @@ export default function TilesetWorkspace({ lockedPalette, onExtractPalette, base
       setIsGenerating(false)
     }
   }, [activeMaterial, styleKey, tileSize, addToast])
+
+  const handleRerollTile = useCallback(async (tileName: string) => {
+    if (!result) return
+    setRerollingTile(tileName)
+    try {
+      const res = await rerollTile({ material: activeMaterial, tile_name: tileName, style_key: styleKey, tile_size: tileSize, locked_palette: lockedPalette })
+      const { image_base64 } = res as { name: string; row: number; col: number; image_base64: string }
+      setResult(prev => prev ? {
+        ...prev,
+        tiles: prev.tiles.map(t => t.name === tileName ? { ...t, image_base64 } : t),
+      } : prev)
+    } catch (e) {
+      addToast(friendlyError(e))
+    } finally {
+      setRerollingTile(null)
+    }
+  }, [result, activeMaterial, styleKey, tileSize, lockedPalette, addToast])
+
+  const handleExportZip = useCallback(async () => {
+    if (!result) return
+    const zip = new JSZip()
+    for (const t of result.tiles) {
+      const bytes = Uint8Array.from(atob(t.image_base64), c => c.charCodeAt(0))
+      zip.file(`${t.name}.png`, bytes)
+    }
+    zip.file('tileset_manifest.json', JSON.stringify(result.manifest, null, 2))
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `tileset_${activeMaterial.replace(/ /g, '_')}.zip`; a.click()
+    URL.revokeObjectURL(url)
+  }, [result, activeMaterial])
 
   const tileMap = result
     ? Object.fromEntries(result.tiles.map(t => [t.name, t]))
@@ -218,14 +247,11 @@ export default function TilesetWorkspace({ lockedPalette, onExtractPalette, base
                 ↓ ATLAS PNG (with extrude)
               </button>
               <button
-                onClick={() => {
-                  result.tiles.forEach(t => downloadPng(t.image_base64, `${t.name}.png`))
-                  downloadJson(result.manifest, 'tileset_manifest.json')
-                }}
+                onClick={handleExportZip}
                 className="w-full py-1.5 text-[10px] border border-ink-700 text-ink-500
                   hover:border-ink-500 hover:text-ink-300 transition-colors"
               >
-                ↓ ALL TILES + MANIFEST
+                ↓ ALL TILES + MANIFEST (ZIP)
               </button>
             </>
           )}
@@ -266,23 +292,39 @@ export default function TilesetWorkspace({ lockedPalette, onExtractPalette, base
               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(4, ${tileSize}px)` }}>
                 {GRID.flat().map((name, i) => {
                   const tile = name ? tileMap[name] : null
+                  const isRerolling = rerollingTile === name
                   return (
                     <div
                       key={i}
-                      className={`relative flex flex-col items-center ${!name ? 'opacity-0 pointer-events-none' : ''}`}
+                      className={`relative flex flex-col items-center ${!name ? 'opacity-0 pointer-events-none' : 'group/tile'}`}
                     >
                       <div
-                        className="checker border border-ink-700 overflow-hidden"
+                        className="checker border border-ink-700 overflow-hidden relative"
                         style={{ width: tileSize, height: tileSize }}
                       >
-                        {tile && (
-                          <img
-                            src={`data:image/png;base64,${tile.image_base64}`}
-                            alt={name!}
-                            className="w-full h-full object-contain"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                        )}
+                        {isRerolling ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="inline-block w-3 h-3 border-2 border-pixel-green border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : tile ? (
+                          <>
+                            <img
+                              src={`data:image/png;base64,${tile.image_base64}`}
+                              alt={name!}
+                              className="w-full h-full object-contain"
+                              style={{ imageRendering: 'pixelated' }}
+                            />
+                            <button
+                              onClick={() => handleRerollTile(name!)}
+                              disabled={!!rerollingTile}
+                              className="absolute inset-0 bg-ink-950/80 opacity-0 group-hover/tile:opacity-100
+                                transition-opacity flex items-center justify-center
+                                text-[9px] text-pixel-green font-bold disabled:cursor-not-allowed"
+                            >
+                              ↻
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                       {name && (
                         <span className="text-[8px] text-ink-600 mt-0.5 text-center truncate w-full px-0.5">
