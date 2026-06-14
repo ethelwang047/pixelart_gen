@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pillow>=11.1.0
+numpy>=2.2.4
+opencv-python-headless>=4.11.0.86
+google-genai
+python-dotenv
+# proper-pixel-art: pip install -e ../proper-pixel-art

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.db
+
+# Test outputs
+backend/test_*.png
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Local separate repos (not submodules)
+proper-pixel-art/
+image-extender/
+
+# OS
+.DS_Store
+Thumbs.db
