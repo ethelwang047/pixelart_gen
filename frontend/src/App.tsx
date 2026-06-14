@@ -11,6 +11,7 @@ import PropsWorkspace from './components/PropsWorkspace'
 import TilesetWorkspace from './components/TilesetWorkspace'
 import SpriteAnimWorkspace from './components/SpriteAnimWorkspace'
 import GalleryWorkspace from './components/GalleryWorkspace'
+import VfxWorkspace from './components/VfxWorkspace'
 import PaletteBar from './components/PaletteBar'
 import EditTools from './components/EditTools'
 import GameSettings from './components/GameSettings'
@@ -19,13 +20,14 @@ import { usePalette } from './hooks/usePalette'
 import { useGameUnit } from './hooks/useGameUnit'
 import { useGallery } from './hooks/useGallery'
 
-type Mode = 'sprite' | 'tileset' | 'props' | 'anim' | 'gallery'
+type Mode = 'sprite' | 'tileset' | 'props' | 'anim' | 'vfx' | 'gallery'
 
 const MODES: { key: Mode; label: string }[] = [
   { key: 'sprite',  label: 'SPRITE'   },
   { key: 'tileset', label: 'TILE SET' },
   { key: 'props',   label: 'PROPS'    },
   { key: 'anim',    label: 'ANIM'     },
+  { key: 'vfx',     label: 'VFX'      },
   { key: 'gallery', label: 'GALLERY'  },
 ]
 
@@ -338,6 +340,9 @@ export default function App() {
         </div>
         <div className={mode !== 'anim' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
           <SpriteAnimWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} />
+        </div>
+        <div className={mode !== 'vfx' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
+          <VfxWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} />
         </div>
         <div className={mode !== 'gallery' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
           <GalleryWorkspace items={gallery.items} onRemoveItem={gallery.removeItem} onClearAll={gallery.clearAll} />

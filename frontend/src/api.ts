@@ -184,6 +184,27 @@ export async function pixelateImage(params: {
   }
 }
 
+export async function generateVfx(params: {
+  effect_type: string
+  custom_description?: string
+  style_key: string
+  tile_size: number
+  locked_palette?: string[]
+}) {
+  const { signal, clear } = withTimeout(120_000)
+  try {
+    const res = await fetch(`${BASE}/vfx/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+      signal,
+    })
+    return handleResponse(res)
+  } finally {
+    clear()
+  }
+}
+
 export async function rerollTile(params: {
   material: string
   tile_name: string
