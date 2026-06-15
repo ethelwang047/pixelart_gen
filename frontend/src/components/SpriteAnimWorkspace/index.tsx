@@ -2,12 +2,15 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import JSZip from 'jszip'
 import { lockCharacter, generateSheet, friendlyError } from '../../api'
 import Toast, { ToastItem, ToastType } from '../Toast'
+import type { GlobalCharacter } from '../../types'
 
 interface SpriteAnimWorkspaceProps {
   lockedPalette?: string[]
   onExtractPalette: (imageB64: string) => Promise<void>
   baseUnit?: number
   onAddToGallery?: (type: 'sprite' | 'prop' | 'tile' | 'anim', name: string, imageB64: string) => void
+  globalCharacter?: GlobalCharacter | null
+  onSetGlobalCharacter?: (c: GlobalCharacter) => void
 }
 
 interface SheetResult {
@@ -59,7 +62,7 @@ function downloadPng(b64: string, filename: string) {
 }
 
 
-export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, baseUnit = 16, onAddToGallery }: SpriteAnimWorkspaceProps) {
+export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, baseUnit = 16, onAddToGallery, globalCharacter, onSetGlobalCharacter }: SpriteAnimWorkspaceProps) {
   const [description, setDescription] = useState('')
   const [styleKey, setStyleKey] = useState('stardew')
   const [model, setModel] = useState('imagen-4.0-generate-001')
@@ -114,7 +117,9 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
     setResult(null)
     try {
       const res = await lockCharacter({ description: description.trim(), style_key: styleKey, model, locked_palette: lockedPalette })
-      setCharacter((res as { character_base64: string }).character_base64)
+      const b64 = (res as { character_base64: string }).character_base64
+      setCharacter(b64)
+      onSetGlobalCharacter?.({ imageB64: b64, description: description.trim(), styleKey })
     } catch (e) {
       addToast(friendlyError(e))
     } finally {
@@ -170,6 +175,44 @@ export default function SpriteAnimWorkspace({ lockedPalette, onExtractPalette, b
 
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       <aside className="w-60 flex-shrink-0 border-r border-ink-700 flex flex-col overflow-y-auto bg-ink-900">
+
+        {/* Global character from SPRITE tab */}
+        {globalCharacter && (
+          <>
+            <div className="p-3 pb-2">
+              <p className="panel-label mb-1.5">FROM SPRITE</p>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 checker border border-ink-700 flex-shrink-0 overflow-hidden">
+                  <img
+                    src={`data:image/png;base64,${globalCharacter.imageB64}`}
+                    alt="sprite character"
+                    className="w-full h-full object-contain"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] text-ink-600 truncate" title={globalCharacter.description}>
+                    {globalCharacter.description.slice(0, 40) || '(no description)'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setCharacter(globalCharacter.imageB64)
+                      setDescription(globalCharacter.description)
+                      setStyleKey(globalCharacter.styleKey)
+                    }}
+                    className={`mt-0.5 text-[10px] px-2 py-0.5 border transition-colors
+                      ${character === globalCharacter.imageB64
+                        ? 'border-pixel-green text-pixel-green bg-pixel-green/10'
+                        : 'border-ink-700 text-ink-500 hover:border-pixel-green hover:text-pixel-green'}`}
+                  >
+                    {character === globalCharacter.imageB64 ? '✓ IN USE' : '→ USE THIS'}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="panel-divider mx-3" />
+          </>
+        )}
 
         {/* Character description */}
         <div className="p-3">

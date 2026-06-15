@@ -16,6 +16,7 @@ import PaletteBar from './components/PaletteBar'
 import EditTools from './components/EditTools'
 import GameSettings from './components/GameSettings'
 import { useHistory, HistoryEntry } from './hooks/useHistory'
+import type { GlobalCharacter } from './types'
 import { usePalette } from './hooks/usePalette'
 import { useGameUnit } from './hooks/useGameUnit'
 import { useGallery } from './hooks/useGallery'
@@ -59,6 +60,7 @@ export default function App() {
   const gameUnit = useGameUnit()
   const gallery = useGallery()
   const [totalCostUsd, setTotalCostUsd] = useState<number | null>(null)
+  const [globalCharacter, setGlobalCharacter] = useState<GlobalCharacter | null>(null)
 
   useEffect(() => {
     getUsage().then(r => setTotalCostUsd((r as { total_cost_usd: number }).total_cost_usd)).catch(() => {})
@@ -291,13 +293,22 @@ export default function App() {
               {pixelImage && (
                 <>
                   <div className="panel-divider mx-3" />
-                  <div className="px-3 pb-2">
+                  <div className="px-3 pb-2 flex flex-col gap-1">
                     <button
                       onClick={() => handleExtractPalette(pixelImage)}
                       className="w-full py-1.5 text-[11px] border border-pixel-amber
                         text-pixel-amber-bright hover:bg-pixel-amber/10 transition-colors"
                     >
                       ↑ SET AS PALETTE
+                    </button>
+                    <button
+                      onClick={() => setGlobalCharacter({ imageB64: pixelImage, description: prompt, styleKey })}
+                      className={`w-full py-1.5 text-[11px] border transition-colors
+                        ${globalCharacter?.imageB64 === pixelImage
+                          ? 'border-pixel-green text-pixel-green bg-pixel-green/10'
+                          : 'border-ink-700 text-ink-500 hover:border-pixel-green hover:text-pixel-green'}`}
+                    >
+                      {globalCharacter?.imageB64 === pixelImage ? '✓ CHARACTER SET' : '→ SET AS CHARACTER'}
                     </button>
                   </div>
                 </>
@@ -336,10 +347,10 @@ export default function App() {
           <TilesetWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} />
         </div>
         <div className={mode !== 'props' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
-          <PropsWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} propPx={gameUnit.propPx} onAddToGallery={gallery.addItem} />
+          <PropsWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} propPx={gameUnit.propPx} onAddToGallery={gallery.addItem} globalCharacter={globalCharacter} />
         </div>
         <div className={mode !== 'anim' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
-          <SpriteAnimWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} />
+          <SpriteAnimWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} globalCharacter={globalCharacter} onSetGlobalCharacter={setGlobalCharacter} />
         </div>
         <div className={mode !== 'vfx' ? 'hidden' : 'flex flex-1 overflow-hidden'}>
           <VfxWorkspace lockedPalette={palette.lockedPalette} onExtractPalette={handleExtractPalette} baseUnit={gameUnit.baseUnit} onAddToGallery={gallery.addItem} />

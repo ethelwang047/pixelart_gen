@@ -3,12 +3,14 @@ import JSZip from 'jszip'
 import { generateProps, rerollProp, friendlyError } from '../../api'
 import Toast, { ToastItem, ToastType } from '../Toast'
 import { usePropsHistory, PropsHistoryEntry } from '../../hooks/usePropsHistory'
+import type { GlobalCharacter } from '../../types'
 
 interface PropsWorkspaceProps {
   lockedPalette?: string[]
   onExtractPalette: (imageB64: string) => Promise<void>
   propPx?: number
   onAddToGallery?: (type: 'sprite' | 'prop' | 'tile' | 'anim', name: string, imageB64: string) => void
+  globalCharacter?: GlobalCharacter | null
 }
 
 interface Prop {
@@ -65,7 +67,7 @@ function resizeAndDownload(b64: string, size: number, filename: string) {
   img.src = `data:image/png;base64,${b64}`
 }
 
-export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx = 8, onAddToGallery }: PropsWorkspaceProps) {
+export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx = 8, onAddToGallery, globalCharacter }: PropsWorkspaceProps) {
   const [props, setProps] = useState<Prop[]>([])
   const [biome, setBiome] = useState('forest glade')
   const [customBiome, setCustomBiome] = useState('')
@@ -73,6 +75,7 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
   const [model, setModel] = useState('imagen-4.0-generate-001')
   const [isGenerating, setIsGenerating] = useState(false)
   const [rerollingId, setRerollingId] = useState<string | null>(null)
+  const [useCharRef, setUseCharRef] = useState(false)
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const { entries: historyEntries, addEntry: addHistoryEntry, removeEntry: removeHistoryEntry } = usePropsHistory()
 
@@ -87,7 +90,7 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
     setIsGenerating(true)
     try {
       const existing = props.map(p => p.name)
-      const res = await generateProps({ biome: activeBiome, style_key: styleKey, existing_names: existing, model, locked_palette: lockedPalette })
+      const res = await generateProps({ biome: activeBiome, style_key: styleKey, existing_names: existing, model, locked_palette: lockedPalette, character_description: (useCharRef && globalCharacter) ? globalCharacter.description : undefined })
       const newProps = (res as { props: Array<{ name: string; description: string; category: string; image_base64: string }> }).props.map(p => ({
         id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
         name: p.name,
@@ -192,6 +195,30 @@ export default function PropsWorkspace({ lockedPalette, onExtractPalette, propPx
               </button>
             ))}
           </div>
+          {globalCharacter && (
+            <div className="mt-2 border border-ink-700 p-1.5 flex items-center gap-2">
+              <div className="w-8 h-8 checker flex-shrink-0 overflow-hidden">
+                <img
+                  src={`data:image/png;base64,${globalCharacter.imageB64}`}
+                  alt="character ref"
+                  className="w-full h-full object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] text-ink-600 truncate mb-0.5">SCALE REF</p>
+                <button
+                  onClick={() => setUseCharRef(v => !v)}
+                  className={`text-[10px] px-2 py-0.5 border transition-colors w-full text-center
+                    ${useCharRef
+                      ? 'border-pixel-green text-pixel-green bg-pixel-green/10'
+                      : 'border-ink-700 text-ink-500 hover:border-ink-500'}`}
+                >
+                  {useCharRef ? '✓ ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="panel-divider mx-3" />

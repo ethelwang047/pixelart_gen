@@ -1,3 +1,9 @@
+export interface GlobalCharacter {
+  imageB64: string
+  description: string
+  styleKey: string
+}
+
 export interface GenerateRequest {
   prompt: string;
   style: string;

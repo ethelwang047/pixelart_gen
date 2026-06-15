@@ -27,6 +27,7 @@ class PropsGenerateRequest(BaseModel):
     batch_size: int = 8
     model: str = "imagen-4.0-generate-001"
     locked_palette: list[str] | None = None
+    character_description: str | None = None
 
 
 class PropRerollRequest(BaseModel):
@@ -85,6 +86,13 @@ Rules:
 
 Return ONLY a valid JSON array, no other text:
 [{{"name": "snake_case_slug", "description": "painter instruction sentence", "category": "category_word"}}]"""
+
+    if req.character_description:
+        art_prompt += (
+            f"\n\nScale reference — the player character in this scene is: {req.character_description}. "
+            f"Design props that look proportionally correct next to this character "
+            f"(props should be noticeably smaller, roughly hand-held to knee-height scale)."
+        )
 
     try:
         text_resp = client.models.generate_content(

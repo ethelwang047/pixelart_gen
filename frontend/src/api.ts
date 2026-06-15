@@ -84,6 +84,7 @@ export async function generateProps(params: {
   batch_size?: number
   model?: string
   locked_palette?: string[]
+  character_description?: string
 }) {
   const { signal, clear } = withTimeout(120_000)
   try {
